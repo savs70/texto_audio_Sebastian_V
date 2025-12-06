@@ -7,12 +7,29 @@ OPCIONES_IDIOMA = {
     "Español (México)": ("es", "com.mx"),
     "Español (España)": ("es", "es"),
     "Español (Estados Unidos)": ("es", "com"),
+    
     "Inglés (EE.UU.)": ("en", "com"),
     "Inglés (Reino Unido)": ("en", "co.uk"),
-    "Francés (Francia)": ("fr", "fr"),
+    
+    "Francés": ("fr", "fr"),
     "Portugués (Brasil)": ("pt", "com.br"),
     "Italiano": ("it", "it"),
     "Alemán": ("de", "de"),
+    
+    "Holandés": ("nl", "nl"),
+    "Sueco": ("sv", "se"),
+    "Noruego": ("no", "no"),
+    "Danés": ("da", "dk"),
+    "Finlandés": ("fi", "fi"),
+    
+    "Coreano": ("ko", "co.kr"),
+    "Japonés": ("ja", "co.jp"),
+    "Chino (Simplificado)": ("zh-CN", "com"),
+    "Chino (Tradicional)": ("zh-TW", "com"),
+    
+    "Ruso": ("ru", "ru"),
+    "Árabe": ("ar", "sa"),
+    "Hindi": ("hi", "co.in"),
 }
 
 st.set_page_config(
