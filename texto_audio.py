@@ -49,7 +49,6 @@ def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
     Convierte un diálogo tipo:
         Profe: Hola
         Alumno: Bien
-    en un texto continuo.
 
     - incluir_nombres=True  -> "Profe: Hola. Alumno: Bien."
     - incluir_nombres=False -> "Hola. Bien."
@@ -73,7 +72,7 @@ def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
             else:
                 fragmentos.append(contenido)
         else:
-            # Línea sin nombre (por ejemplo, narrador sin etiqueta)
+            # Línea sin nombre (por ejemplo narrador sin etiqueta)
             fragmentos.append(linea)
 
     # Unimos con puntos para provocar pequeñas pausas
@@ -162,27 +161,26 @@ else:
         "Escribe un diálogo usando el formato "
         "`Nombre: texto` en cada línea.  \n"
         "La voz leerá **solo las frases**, **sin decir los nombres**.  \n\n"
-        "Ejemplo de formato:"
-    )
-
-    st.code(
-        "Profe: Hola, ¿cómo están hoy?\n"
-        "Alumno: Estamos bien, profe.\n"
-        "Narrador: La clase se anima.",
-        language="text",
+        "Ejemplo: `Profe: Hola, ¿cómo están hoy?`   "
+        "`Alumno: Estamos bien, profe.`   "
+        "`Narrador: La clase se anima.`"
     )
 
     ejemplo_dialogo = (
-        "Profe: Hoy vamos a practicar el pretérito imperfecto.\n"
-        "Alumno: Profe, ¿podemos hacer también listening?\n"
-        "Narrador: La clase se anima.\n"
-        "Profe: Claro, y luego usamos el convertidor de Sebastián."
+        "María: Exacto. Por eso hoy son tan importantes. "
+        "Los usamos para estudiar, trabajar, viajar… para casi todo.\n\n"
+        "Fernando: Aunque también tienen desventajas, ¿no?\n\n"
+        "María: Sí, claro. La gente se distrae mucho con el móvil "
+        "y algunos modelos son muy caros. Pero si lo usamos bien, "
+        "es una herramienta súper útil.\n\n"
+        "Fernando: Totalmente de acuerdo. El móvil cambió nuestra vida."
     )
 
     texto_dialogo = st.text_area(
         "Diálogo",
         height=260,
         placeholder=ejemplo_dialogo,
+        key="dialogo_textarea",
     )
 
     nombre_archivo_d = st.text_input(
@@ -203,7 +201,7 @@ else:
             st.error("❌ El diálogo está vacío.")
         else:
             try:
-                # Aquí indicamos incluir_nombres=False para NO leerlos
+                # NO leemos los nombres de los participantes
                 texto_procesado = parse_dialog(texto_dialogo, incluir_nombres=False)
 
                 if not texto_procesado.strip():
