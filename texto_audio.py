@@ -113,9 +113,7 @@ def generar_linea_gtts(texto: str, lang: str) -> bytes:
 def concatenar_mp3(lista_mp3) -> bytes:
     """
     Concatena múltiples chunks MP3.
-    gTTS genera MP3 válidos; concatenarlos así suele funcionar bien
-    para uso simple (no es edición profesional, pero sirve perfecto
-    para diálogos educativos).
+    Suficiente para diálogos educativos simples.
     """
     final = b""
     for mp3 in lista_mp3:
@@ -185,18 +183,24 @@ if modo == "Narración":
 elif modo == "Conversación":
     st.subheader("🎭 Modo Conversación (múltiples acentos con gTTS)")
 
-    st.write(
-        "**Formato recomendado:**\n"
-        "`Personaje: diálogo...`\n\n"
-        "Ejemplo:\n"
-        "Profe: Hola, ¿cómo están hoy?\n"
-        "Alumno: Muy bien, profe.\n"
-        "Narrador: La clase empieza con energía."
+    st.markdown(
+        "Escribe un diálogo usando el formato `Nombre: texto` en cada línea. "
+        "Ejemplo: `Profe: Hola, ¿cómo están hoy?`  "
+        "`Alumno: Estamos bien, profe.`  "
+        "`Narrador: La clase se anima.`"
+    )
+
+    ejemplo_dialogo = (
+        "Profe: Hoy vamos a practicar el pretérito imperfecto.\n"
+        "Alumno: Profe, ¿podemos hacer también listening?\n"
+        "Narrador: La clase se anima.\n"
+        "Profe: Claro, y luego usamos el convertidor de Sebastián."
     )
 
     texto_conv = st.text_area(
-        "Escribe el diálogo aquí:",
-        height=260
+        "Diálogo",
+        height=260,
+        placeholder=ejemplo_dialogo,  # ← aparece en gris
     )
 
     personajes, segmentos = [], []
@@ -230,12 +234,10 @@ elif modo == "Conversación":
             st.error("❌ No se encontraron líneas válidas en el diálogo.")
         else:
             try:
-                # Generar MP3 por línea usando el acento de cada personaje
                 audios = []
                 for personaje, frase in segmentos:
                     voz_label = st.session_state.get(f"voz_{personaje}")
                     if not voz_label:
-                        # Por si acaso, usa español de España por defecto
                         voz_label = "Español - España"
                     lang = IDIOMAS_CONVERSACION[voz_label]
 
