@@ -1,9 +1,9 @@
 import io
-import streamlit as st
 from gtts import gTTS
+import streamlit as st
 
 # ============================
-# CONFIGURACIÓN DE LA INTERFAZ
+# CONFIGURACIÓN DE LA PÁGINA
 # ============================
 st.set_page_config(
     page_title="Convertidor de texto a MP3 de Sebastián V.",
@@ -12,60 +12,38 @@ st.set_page_config(
 )
 
 st.title("🎧 Convertidor de texto a MP3 de Sebastián V.")
-st.write("Convierte texto en audio MP3 con soporte para **narraciones** o **conversaciones con varios acentos**.")
-
-
-# ============================
-# IDIOMAS DISPONIBLES (NARRACIÓN)
-# ============================
-IDIOMAS = {
-    "Español (es)": "es",
-    "Inglés (en)": "en",
-    "Mandarín (zh-CN)": "zh-cn",
-    "Coreano (ko)": "ko",
-    "Francés (fr)": "fr",
-    "Portugués (pt)": "pt",
-    "Alemán (de)": "de",
-    "Italiano (it)": "it",
-}
+st.write(
+    "Convierte texto en audio MP3. "
+    "Puedes usarlo como narrador o para practicar diálogos."
+)
 
 # ============================
-# IDIOMAS / ACENTOS PARA CONVERSACIÓN
+# VOCES / IDIOMAS DISPONIBLES
 # ============================
-IDIOMAS_CONVERSACION = {
-    "Español - España": "es",
-    "Español - México": "es-mx",
-    "Español - Colombia": "es-co",
-    # Google usa 'es-us' como variante rioplatense (suena argentino)
-    "Español - Argentina": "es-us",
-    "Español - Perú": "es-pe",
-    "Español - Venezuela": "es-ve",
-    "Inglés - USA": "en",
-    "Inglés - UK": "en-uk",
-    "Inglés - Australia": "en-au",
-    "Coreano": "ko",
-    "Mandarín (China)": "zh-cn",
-    "Francés": "fr",
-    "Italiano": "it",
-    "Portugués (Brasil)": "pt-br",
+
+VOICE_OPTIONS = {
+    # Español: mismo idioma (es), distinto acento con tld
+    "Español (España)": {"lang": "es", "tld": "es"},
+    "Español (México)": {"lang": "es", "tld": "com.mx"},
+    "Español (Argentina)": {"lang": "es", "tld": "com.ar"},
+    "Español (Colombia)": {"lang": "es", "tld": "com.co"},
+
+    # Otros idiomas
+    "Inglés (EE.UU.)": {"lang": "en", "tld": "com"},
+    "Coreano": {"lang": "ko", "tld": "co.kr"},
+    "Mandarín (China)": {"lang": "zh-CN", "tld": "com"},
 }
 
 
-# ============================
-# FUNCIÓN gTTS (GENÉRICA)
-# ============================
-def generar_audio_gtts(texto: str, lang: str) -> bytes:
-    """Genera audio MP3 usando gTTS y lo devuelve en bytes."""
-    tts = gTTS(text=texto, lang=lang)
-    buf = io.BytesIO()
-    tts.write_to_fp(buf)
-    buf.seek(0)
-    return buf.read()
+def generar_audio_gtts(texto: str, lang: str, tld: str) -> bytes:
+    """Genera audio MP3 usando gTTS y devuelve los bytes."""
+    tts = gTTS(text=texto, lang=lang, tld=tld)
+    buffer = io.BytesIO()
+    tts.write_to_fp(buffer)
+    buffer.seek(0)
+    return buffer.read()
 
 
-# ============================
-# FUNCIONES PARA CONVERSACIÓN
-# ============================
 def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
     """
     Convierte un diálogo tipo:
@@ -73,8 +51,8 @@ def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
         Alumno: Bien
     en un texto continuo.
 
-    - Si incluir_nombres=True  -> "Profe: Hola. Alumno: Bien."
-    - Si incluir_nombres=False -> "Hola. Bien."
+    - incluir_nombres=True  -> "Profe: Hola. Alumno: Bien."
+    - incluir_nombres=False -> "Hola. Bien."
     """
     fragmentos = []
 
@@ -95,100 +73,103 @@ def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
             else:
                 fragmentos.append(contenido)
         else:
-            # Línea sin nombre, se usa tal cual
+            # Línea sin nombre (por ejemplo, narrador sin etiqueta)
             fragmentos.append(linea)
 
-    # Unimos con pequeñas pausas
+    # Unimos con puntos para provocar pequeñas pausas
     return ". ".join(fragmentos)
-
-
-def generar_linea_gtts(texto: str, lang: str) -> bytes:
-    """Genera una línea de diálogo en MP3 usando gTTS."""
-    tts = gTTS(text=texto, lang=lang)
-    buf = io.BytesIO()
-    tts.write_to_fp(buf)
-    buf.seek(0)
-    return buf.read()
-
-
-def concatenar_mp3(lista_mp3) -> bytes:
-    """
-    Concatena múltiples chunks MP3.
-    Suficiente para diálogos educativos simples.
-    """
-    final = b""
-    for mp3 in lista_mp3:
-        final += mp3
-    return final
 
 
 # ============================
 # SELECCIÓN DE MODO
 # ============================
+
 modo = st.radio(
     "¿Qué deseas hacer?",
     ["Narración", "Conversación"],
-    horizontal=True
+    horizontal=True,
 )
 
 st.markdown("---")
 
+# ============================
+# SELECCIÓN DE VOZ (ACENTO)
+# ============================
+
+voz_label = st.selectbox(
+    "Selecciona la voz (acento / idioma):",
+    list(VOICE_OPTIONS.keys()),
+)
+voz_cfg = VOICE_OPTIONS[voz_label]
+lang = voz_cfg["lang"]
+tld = voz_cfg["tld"]
+
+st.markdown("---")
 
 # ============================
-# MODO: NARRACIÓN
+# MODO NARRACIÓN
 # ============================
+
 if modo == "Narración":
     st.subheader("📖 Modo Narración")
 
     texto = st.text_area(
-        "Texto a convertir:",
-        height=250,
-        placeholder="Escribe aquí el texto que deseas convertir a audio…"
+        "Escribe el texto que quieres convertir a audio:",
+        height=260,
+        placeholder="Escribe aquí tu texto para convertirlo en narración…",
     )
 
-    idioma_label = st.selectbox("Idioma del audio:", list(IDIOMAS.keys()))
-    lang_code = IDIOMAS[idioma_label]
-
-    nombre_archivo = st.text_input("Nombre del archivo (sin .mp3):", "audio_narracion")
+    nombre_archivo = st.text_input(
+        "Nombre del archivo (sin .mp3):",
+        "narracion_sebastian_v",
+        key="nombre_narracion",
+    )
 
     col1, col2 = st.columns(2)
-    btn_previa = col1.button("🔊 Previsualizar narración")
-    btn_descargar = col2.button("⬇️ Generar y descargar narración")
+    btn_previa = col1.button("🔊 Previsualizar narración", key="btn_previa_narracion")
+    btn_desc = col2.button(
+        "⬇️ Generar y descargar MP3", key="btn_descargar_narracion"
+    )
 
-    if btn_previa or btn_descargar:
+    if btn_previa or btn_desc:
         if not texto.strip():
             st.error("❌ El texto está vacío.")
         else:
             try:
-                audio_bytes = generar_audio_gtts(texto, lang_code)
-                buffer = io.BytesIO(audio_bytes)
-
+                audio_bytes = generar_audio_gtts(texto, lang=lang, tld=tld)
                 st.success("✅ Audio generado correctamente.")
-                st.audio(buffer, format="audio/mp3")
+                st.audio(audio_bytes, format="audio/mp3")
 
-                if btn_descargar:
+                if btn_desc:
                     st.download_button(
                         "⬇️ Descargar MP3",
                         data=audio_bytes,
                         file_name=f"{nombre_archivo}.mp3",
                         mime="audio/mpeg",
+                        key="download_narracion",
                     )
-
             except Exception as e:
                 st.error(f"❌ Error al generar el audio: {e}")
 
+# ============================
+# MODO CONVERSACIÓN
+# ============================
 
-# ============================
-# MODO: CONVERSACIÓN MULTI-ACENTO
-# ============================
-elif modo == "Conversación":
-    st.subheader("🎭 Modo Conversación (múltiples acentos con gTTS)")
+else:
+    st.subheader("🎭 Modo Conversación")
 
     st.markdown(
-        "Escribe un diálogo usando el formato `Nombre: texto` en cada línea. "
-        "Ejemplo: `Profe: Hola, ¿cómo están hoy?`  "
-        "`Alumno: Estamos bien, profe.`  "
-        "`Narrador: La clase se anima.`"
+        "Escribe un diálogo usando el formato "
+        "`Nombre: texto` en cada línea.  \n"
+        "La voz leerá **solo las frases**, **sin decir los nombres**.  \n\n"
+        "Ejemplo de formato:"
+    )
+
+    st.code(
+        "Profe: Hola, ¿cómo están hoy?\n"
+        "Alumno: Estamos bien, profe.\n"
+        "Narrador: La clase se anima.",
+        language="text",
     )
 
     ejemplo_dialogo = (
@@ -198,73 +179,61 @@ elif modo == "Conversación":
         "Profe: Claro, y luego usamos el convertidor de Sebastián."
     )
 
-    texto_conv = st.text_area(
+    texto_dialogo = st.text_area(
         "Diálogo",
         height=260,
-        placeholder=ejemplo_dialogo,  # ← aparece en gris
+        placeholder=ejemplo_dialogo,
     )
 
-    personajes, segmentos = [], []
-    if texto_conv.strip():
-        personajes, segmentos = parse_dialogue(texto_conv)
-
-    if personajes:
-        st.markdown("### 🎙️ Voces / acentos por personaje")
-        for p in personajes:
-            st.selectbox(
-                f"Voz/acento para «{p}»:",
-                list(IDIOMAS_CONVERSACION.keys()),
-                key=f"voz_{p}"
-            )
-    else:
-        st.info("Escribe el diálogo arriba para detectar personajes y elegir sus acentos.")
-
-    nombre_archivo_conv = st.text_input(
+    nombre_archivo_d = st.text_input(
         "Nombre del archivo (sin .mp3):",
-        "dialogo_multivoces"
+        "dialogo_sebastian_v",
+        key="nombre_dialogo",
     )
 
     col1, col2 = st.columns(2)
-    btn_prev = col1.button("🔊 Previsualizar diálogo multivoces")
-    btn_down = col2.button("⬇️ Generar y descargar MP3 multivoces")
+    btn_previa_d = col1.button("🔊 Previsualizar diálogo", key="btn_previa_dialogo")
+    btn_desc_d = col2.button(
+        "⬇️ Generar y descargar MP3 del diálogo",
+        key="btn_descargar_dialogo",
+    )
 
-    if btn_prev or btn_down:
-        if not texto_conv.strip():
+    if btn_previa_d or btn_desc_d:
+        if not texto_dialogo.strip():
             st.error("❌ El diálogo está vacío.")
-        elif not segmentos:
-            st.error("❌ No se encontraron líneas válidas en el diálogo.")
         else:
             try:
-                audios = []
-                for personaje, frase in segmentos:
-                    voz_label = st.session_state.get(f"voz_{personaje}")
-                    if not voz_label:
-                        voz_label = "Español - España"
-                    lang = IDIOMAS_CONVERSACION[voz_label]
+                # Aquí indicamos incluir_nombres=False para NO leerlos
+                texto_procesado = parse_dialog(texto_dialogo, incluir_nombres=False)
 
-                    texto_linea = f"{personaje}: {frase}"
-                    mp3_linea = generar_linea_gtts(texto_linea, lang)
-                    audios.append(mp3_linea)
-
-                audio_final = concatenar_mp3(audios)
-                buffer = io.BytesIO(audio_final)
-
-                st.success("✅ ¡Diálogo generado con múltiples acentos!")
-                st.audio(buffer, format="audio/mp3")
-
-                if btn_down:
-                    st.download_button(
-                        "⬇️ Descargar MP3 multivoces",
-                        data=audio_final,
-                        file_name=f"{nombre_archivo_conv}.mp3",
-                        mime="audio/mpeg",
+                if not texto_procesado.strip():
+                    st.error("❌ No se encontraron líneas válidas en el diálogo.")
+                else:
+                    audio_bytes = generar_audio_gtts(
+                        texto_procesado, lang=lang, tld=tld
                     )
+                    st.success("✅ Audio del diálogo generado correctamente.")
+                    st.audio(audio_bytes, format="audio/mp3")
 
+                    if btn_desc_d:
+                        st.download_button(
+                            "⬇️ Descargar MP3 del diálogo",
+                            data=audio_bytes,
+                            file_name=f"{nombre_archivo_d}.mp3",
+                            mime="audio/mpeg",
+                            key="download_dialogo",
+                        )
             except Exception as e:
                 st.error(f"❌ Error al generar el audio del diálogo: {e}")
 
+# ============================
+# PIE DE PÁGINA
+# ============================
+
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: right; color: gray;'>Hecho por Sebastian V.</div>",
-    unsafe_allow_html=True
+    "<div style='text-align: right; color: gray; font-size: 0.9rem;'>"
+    "Hecho por Sebastian V."
+    "</div>",
+    unsafe_allow_html=True,
 )
