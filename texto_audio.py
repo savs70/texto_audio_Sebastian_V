@@ -1,333 +1,258 @@
 import io
+import re
 import asyncio
-from typing import List, Tuple, Dict
-
 import streamlit as st
 import edge_tts
 
-# ===== Voces disponibles (puedes ampliar esta lista) =====
-VOICE_OPTIONS = {
-    # -----------------------
-    # ESPAÑOL - España
-    # -----------------------
-    "Español (España) - Elvira (♀)": "es-ES-ElviraNeural",
-    "Español (España) - Álvaro (♂)": "es-ES-AlvaroNeural",
-    "Español (España) - Laia (♀)": "es-ES-LaiaNeural",
-    "Español (España) - Tomás (♂)": "es-ES-TomasNeural",
-
-    # -----------------------
-    # ESPAÑOL - México
-    # -----------------------
-    "Español (México) - Dalia (♀)": "es-MX-DaliaNeural",
-    "Español (México) - Cecilia (♀)": "es-MX-CeciliaNeural",
-    "Español (México) - Jorge (♂)": "es-MX-JorgeNeural",
-    "Español (México) - Lucas (♂)": "es-MX-LucasNeural",
-
-    # -----------------------
-    # ESPAÑOL - Argentina
-    # -----------------------
-    "Español (Argentina) - Elena (♀)": "es-AR-ElenaNeural",
-    "Español (Argentina) - Tomás (♂)": "es-AR-TomasNeural",
-
-    # -----------------------
-    # ESPAÑOL - Colombia
-    # -----------------------
-    "Español (Colombia) - Salomé (♀)": "es-CO-SalomeNeural",
-    "Español (Colombia) - Gonzalo (♂)": "es-CO-GonzaloNeural",
-
-    # -----------------------
-    # ESPAÑOL - Chile
-    # -----------------------
-    "Español (Chile) - Catalina (♀)": "es-CL-CatalinaNeural",
-    "Español (Chile) - Lorenzo (♂)": "es-CL-LorenzoNeural",
-
-    # -----------------------
-    # ESPAÑOL - Perú
-    # -----------------------
-    "Español (Perú) - Camila (♀)": "es-PE-CamilaNeural",
-    "Español (Perú) - Lorenzo (♂)": "es-PE-LorenzoNeural",
-
-    # -----------------------
-    # COREANO
-    # -----------------------
-    "Coreano - Sun-Hi (♀)": "ko-KR-SunHiNeural",
-    "Coreano - In-Joon (♂)": "ko-KR-InJoonNeural",
-    "Coreano - Ji-Min (♀)": "ko-KR-JiMinNeural",
-    "Coreano - Seo-Yeon (♀)": "ko-KR-SeoYeonNeural",
-    "Coreano - Bong-Hyeon (♂)": "ko-KR-BongHyeonNeural",
-
-    # -----------------------
-    # INGLÉS (ejemplos)
-    # -----------------------
-    "Inglés (EE.UU.) - Aria (♀)": "en-US-AriaNeural",
-    "Inglés (EE.UU.) - Guy (♂)": "en-US-GuyNeural",
-
-     # -----------------------
-    # MANDARÍN - China (zh-CN)
-    # -----------------------
-    "Mandarín (China) - Xiaoxiao (♀)": "zh-CN-XiaoxiaoNeural",
-    "Mandarín (China) - Xiaoyi (♀)": "zh-CN-XiaoyiNeural",
-    "Mandarín (China) - Xiaoshuang (♀, niña)": "zh-CN-XiaoshuangNeural",
-    "Mandarín (China) - Xiaozhen (♀, narradora)": "zh-CN-XiaozhenNeural",
-    "Mandarín (China) - Yunxi (♂)": "zh-CN-YunxiNeural",
-    "Mandarín (China) - Yunye (♂, maduro)": "zh-CN-YunyeNeural",
-    "Mandarín (China) - Yunyang (♂, joven)": "zh-CN-YunyangNeural",
-
-    # -----------------------
-    # MANDARÍN - Taiwán (zh-TW)
-    # -----------------------
-    "Mandarín (Taiwán) - HsiaoChen (♀)": "zh-TW-HsiaoChenNeural",
-    "Mandarín (Taiwán) - HsiaoYu (♀)": "zh-TW-HsiaoYuNeural",
-    "Mandarín (Taiwán) - YunJhe (♂)": "zh-TW-YunJheNeural",
-}
-
-# ===== Configuración general de la app =====
+# ============================
+# CONFIGURACIÓN DE LA PÁGINA
+# ============================
 st.set_page_config(
-    page_title="Convertidor de texto a MP3 de Sebastian V.",
+    page_title="Convertidor de texto a MP3 – Sebastián V.",
     page_icon="🎧",
     layout="centered",
 )
 
-st.title("🎧 Convertidor de texto a MP3 de Sebastian V.")
-st.write("Elige si quieres generar **una narración** o **una conversación con varias voces**.")
+st.title("🎧 Convertidor de texto a MP3 – Sebastián V.")
+st.write("Convierte texto en audio MP3 usando Edge-TTS, sin backend separado.")
+
+# ============================
+# VOCES DISPONIBLES
+# ============================
+VOCES = {
+    "Español (España) – Elvira": "es-ES-ElviraNeural",
+    "Español (España) – Álvaro": "es-ES-AlvaroNeural",
+    "Español (México) – Dalia": "es-MX-DaliaNeural",
+    "Español (México) – Jorge": "es-MX-JorgeNeural",
+    "Español (Argentina) – Elena": "es-AR-ElenaNeural",
+    "Español (Colombia) – Salomé": "es-CO-SalomeNeural",
+    "Coreano – SunHi": "ko-KR-SunHiNeural",
+    "Coreano – InJoon": "ko-KR-InJoonNeural",
+    "Chino – Xiaoxiao": "zh-CN-XiaoxiaoNeural",
+    "Chino – Xiaoyi": "zh-CN-XiaoyiNeural",
+}
 
 
-# ===== Funciones comunes =====
-async def synthesize_edge_tts(text: str, voice_name: str, velocidad: str) -> bytes:
-    """Genera audio MP3 en memoria usando edge-tts."""
-    # rate: +0% normal, -20% más lento
-    if velocidad == "Lenta":
-        rate = "-20%"
-    else:
-        rate = "+0%"
+def format_param(value: int) -> str:
+    """
+    Convierte un entero (por ejemplo 0, 10, -20)
+    en el formato que Edge-TTS espera: +0%, +10%, -20%, etc.
+    """
+    return f"{'+' if value >= 0 else ''}{value}%"
 
-    communicate = edge_tts.Communicate(text=text, voice=voice_name, rate=rate)
 
-    audio_bytes = b""
+# ============================
+# FUNCIONES ASYNC
+# ============================
+
+async def generar_audio_simple(texto: str, voice: str, rate: int, volume: int,
+                               progress_bar) -> io.BytesIO:
+    """Genera audio para narración única."""
+    rate_str = format_param(rate)
+    volume_str = format_param(volume)
+
+    communicate = edge_tts.Communicate(
+        text=texto,
+        voice=voice,
+        rate=rate_str,
+        volume=volume_str,
+    )
+
+    audio = io.BytesIO()
+    step = 0
+
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
-            audio_bytes += chunk["data"]
+            audio.write(chunk["data"])
+        # Barra de progreso "clásica"
+        step = min(step + 5, 95)
+        progress_bar.progress(step)
 
-    return audio_bytes
+    progress_bar.progress(100)
+    audio.seek(0)
+    return audio
 
 
-def generar_audio_simple(texto: str, voz_label: str, velocidad: str) -> bytes:
-    """Genera audio MP3 para narración simple (una voz)."""
-    voice_name = VOICE_OPTIONS[voz_label]
-    return asyncio.run(synthesize_edge_tts(texto, voice_name, velocidad))
-
-
-def parse_dialogue(text: str) -> Tuple[List[str], List[Tuple[str, str]]]:
+async def generar_audio_dialogo(partes, asignaciones, rate: int, volume: int,
+                                progress_bar) -> io.BytesIO:
     """
-    Devuelve:
-      - lista de personajes únicos
-      - lista de segmentos (personaje, texto)
-    Formato esperado por línea: 'Nombre: texto...'
-    Si una línea no tiene ':', se asigna al 'Narrador'.
+    Genera audio concatenando cada intervención del diálogo.
+    partes: lista de (nombre, frase)
+    asignaciones: dict nombre -> voz_edge
     """
-    speakers: List[str] = []
-    segments: List[Tuple[str, str]] = []
+    rate_str = format_param(rate)
+    volume_str = format_param(volume)
 
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
+    audio_total = io.BytesIO()
+    total_partes = len(partes)
+    progreso = 0
 
-        if ":" in line:
-            name, content = line.split(":", 1)
-            name = name.strip()
-            content = content.strip()
-            if not content:
-                continue
-        else:
-            name = "Narrador"
-            content = line
+    for idx, (nombre, frase) in enumerate(partes, start=1):
+        voz_persona = asignaciones[nombre]
 
-        if name not in speakers:
-            speakers.append(name)
-        segments.append((name, content))
-
-    return speakers, segments
-
-
-def generate_full_dialogue_audio(
-    segments: List[Tuple[str, str]],
-    speakers: List[str],
-    velocidad: str,
-) -> bytes:
-    """
-    Genera el audio completo del diálogo concatenando las réplicas
-    de cada personaje con su voz correspondiente.
-    """
-    # Mapear cada speaker a su voz (voice_name real)
-    speaker_to_voice: Dict[str, str] = {}
-    for speaker in speakers:
-        voice_label = st.session_state.get(f"voice_{speaker}")
-        if not voice_label:
-            # por si acaso, asignamos una voz por defecto
-            voice_label = list(VOICE_OPTIONS.keys())[0]
-        speaker_to_voice[speaker] = VOICE_OPTIONS[voice_label]
-
-    # Concatenar audios de cada intervención
-    final_audio = b""
-    for speaker, text in segments:
-        voice_name = speaker_to_voice.get(
-            speaker, VOICE_OPTIONS[list(VOICE_OPTIONS.keys())[0]]
+        communicate = edge_tts.Communicate(
+            text=frase,
+            voice=voz_persona,
+            rate=rate_str,
+            volume=volume_str,
         )
-        audio_bytes = asyncio.run(synthesize_edge_tts(text, voice_name, velocidad))
-        final_audio += audio_bytes
 
-    return final_audio
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_total.write(chunk["data"])
+
+        # Actualizamos progreso según el número de intervenciones completadas
+        progreso = int(idx / total_partes * 95)
+        progress_bar.progress(progreso)
+
+    progress_bar.progress(100)
+    audio_total.seek(0)
+    return audio_total
 
 
-# ===== Selector de modo =====
-modo = st.radio(
-    "¿Qué deseas hacer?",
-    ["Narración", "Conversación"],
-    horizontal=True,
-)
+# ============================
+# INTERFAZ PRINCIPAL
+# ============================
 
+modo = st.radio("¿Qué deseas hacer?", ["Narración", "Conversación"], horizontal=True)
 st.markdown("---")
 
-# =========================
-# MODO NARRACIÓN
-# =========================
+# --------------------------
+# NARRACIÓN
+# --------------------------
 if modo == "Narración":
-    st.subheader("📖 Modo narración (una sola voz)")
+    st.subheader("📖 Modo Narración")
 
     texto = st.text_area(
-        "Texto a convertir",
-        height=250,
-        placeholder="Pega aquí el texto que quieras narrar…",
-        key="texto_narracion",
+        "Escribe o pega tu texto:",
+        height=260,
+        placeholder="Escribe aquí tu texto para convertirlo en narración…",
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        voz_label = st.selectbox(
-            "Voz (idioma / género)", list(VOICE_OPTIONS.keys()), key="voz_narracion"
-        )
-    with col2:
-        velocidad = st.selectbox("Velocidad", ["Normal", "Lenta"], key="vel_narracion")
+    voz_label = st.selectbox("Selecciona la voz:", list(VOCES.keys()))
+    rate = st.slider("Velocidad", -50, 50, 0, format="%d%%", key="rate_narr")
+    volume = st.slider("Volumen", -50, 50, 0, format="%d%%", key="vol_narr")
 
-    nombre_base = st.text_input(
-        "Nombre del archivo (sin .mp3)", value="audio_narracion", key="nombre_narracion"
-    )
-
-    colA, colB = st.columns(2)
-    boton_previa = colA.button("🔊 Previsualizar narración")
-    boton_generar = colB.button("⚙️ Generar y descargar MP3")
-
-    if boton_previa or boton_generar:
+    if st.button("🎧 Generar narración"):
         if not texto.strip():
-            st.error("❌ El cuadro de texto está vacío.")
+            st.error("❌ El texto está vacío.")
         else:
-            try:
-                audio_bytes = generar_audio_simple(texto, voz_label, velocidad)
-                buffer = io.BytesIO(audio_bytes)
+            progress_bar = st.progress(0)
+            st.info("Generando audio…")
 
-                st.success("✅ Audio generado correctamente.")
-                st.audio(buffer, format="audio/mp3")
+            audio_bytes = asyncio.run(
+                generar_audio_simple(
+                    texto=texto,
+                    voice=VOCES[voz_label],
+                    rate=rate,
+                    volume=volume,
+                    progress_bar=progress_bar,
+                )
+            )
 
-                if boton_generar:
-                    nombre_archivo = f"{nombre_base or 'audio_narracion'}.mp3"
-                    st.download_button(
-                        "⬇️ Descargar MP3",
-                        data=audio_bytes,
-                        file_name=nombre_archivo,
-                        mime="audio/mpeg",
+            st.success("✅ Narración generada.")
+            st.audio(audio_bytes, format="audio/mp3")
+            st.download_button(
+                "⬇️ Descargar MP3",
+                data=audio_bytes,
+                file_name="narracion_sebastian_v.mp3",
+                mime="audio/mpeg",
+            )
+
+# --------------------------
+# CONVERSACIÓN
+# --------------------------
+else:
+    st.subheader("🎭 Modo Conversación")
+
+    st.markdown(
+        "Escribe un diálogo usando el formato **Nombre: texto** en cada línea.\n\n"
+        "Ejemplo:\n"
+        "`Profe: Hola, ¿cómo están hoy?`\n\n"
+        "`Alumno: Estamos bien, profe.`\n\n"
+        "`Narrador: La clase se anima.`\n\n"
+        "👉 La voz **no leerá los nombres**, solo las frases."
+    )
+
+    ejemplo_dialogo = (
+        "María: Exacto. Por eso hoy son tan importantes. "
+        "Los usamos para estudiar, trabajar, viajar… para casi todo.\n\n"
+        "Fernando: Aunque también tienen desventajas, ¿no?\n\n"
+        "María: Sí, claro. La gente se distrae mucho con el móvil "
+        "y algunos modelos son muy caros. Pero si lo usamos bien, "
+        "es una herramienta súper útil.\n\n"
+        "Fernando: Totalmente de acuerdo. El móvil cambió nuestra vida."
+    )
+
+    texto_dialogo = st.text_area(
+        "Diálogo:",
+        height=260,
+        placeholder=ejemplo_dialogo,
+    )
+
+    # Detectar participantes
+    personas = sorted(set(re.findall(r"^([^:]+):", texto_dialogo, flags=re.MULTILINE)))
+
+    if personas:
+        st.subheader("🎙 Voces por participante")
+        asignaciones = {}
+        for p in personas:
+            asignaciones[p] = VOCES[st.selectbox(
+                f"Voz para **{p}**:",
+                list(VOCES.keys()),
+                key=f"voz_{p}",
+            )]
+    else:
+        asignaciones = {}
+
+    rate_c = st.slider("Velocidad", -50, 50, 0, format="%d%%", key="rate_conv")
+    volume_c = st.slider("Volumen", -50, 50, 0, format="%d%%", key="vol_conv")
+
+    if st.button("🎧 Generar conversación"):
+        if not texto_dialogo.strip():
+            st.error("❌ El diálogo está vacío.")
+        else:
+            # Dividir en partes Nombre: frase
+            partes = re.findall(r"^([^:]+):\s*(.+)", texto_dialogo, flags=re.MULTILINE)
+
+            if not partes:
+                st.error("❌ No se encontraron líneas con el formato `Nombre: texto`.")
+            else:
+                # Verificamos que todos tengan voz asignada
+                nombres_detectados = {n for n, _ in partes}
+                faltantes = [n for n in nombres_detectados if n not in asignaciones]
+                if faltantes:
+                    st.error(
+                        "⚠️ Falta asignar voz a: " + ", ".join(faltantes)
+                    )
+                else:
+                    progress_bar = st.progress(0)
+                    st.info("Generando audio del diálogo…")
+
+                    audio_final = asyncio.run(
+                        generar_audio_dialogo(
+                            partes=partes,
+                            asignaciones=asignaciones,
+                            rate=rate_c,
+                            volume=volume_c,
+                            progress_bar=progress_bar,
+                        )
                     )
 
-            except Exception as e:
-                st.error(f"❌ Error al generar el audio (Edge TTS): {e}")
-
-
-# =========================
-# MODO CONVERSACIÓN
-# =========================
-elif modo == "Conversación":
-    st.subheader("🎭 Modo conversación (múltiples voces)")
-
-    st.write(
-        "Escribe un diálogo usando el formato `Nombre: texto` en cada línea.\n"
-        "Ejemplo:\n"
-        "`Profe: Hola, ¿cómo están hoy?`\n"
-        "`Alumno: Estamos bien, profe.`\n"
-        "`Narrador: La clase se anima.`"
-    )
-
-    texto_conv = st.text_area(
-        "Diálogo",
-        height=260,
-        placeholder=(
-            "Profe: Hoy vamos a practicar el pretérito imperfecto.\n"
-            "Alumno: Profe, ¿podemos hacer también listening?\n"
-            "Narrador: La clase se anima.\n"
-            "Profe: Claro, y luego usamos el convertidor de Sebastián."
-        ),
-        key="texto_conversacion",
-    )
-
-    speakers: List[str] = []
-    segments: List[Tuple[str, str]] = []
-
-    if texto_conv.strip():
-        speakers, segments = parse_dialogue(texto_conv)
-
-    if speakers:
-        st.markdown("### Personajes detectados y sus voces")
-
-        for speaker in speakers:
-            st.selectbox(
-                f"Voz para «{speaker}»",
-                list(VOICE_OPTIONS.keys()),
-                key=f"voice_{speaker}",
-            )
-    else:
-        st.info("Escribe el diálogo arriba para detectar personajes y asignar voces.")
-
-    nombre_base_conv = st.text_input(
-        "Nombre del archivo (sin .mp3)",
-        value="dialogo_generado",
-        key="nombre_dialogo",
-    )
-
-    velocidad_conv = st.selectbox(
-        "Velocidad global", ["Normal", "Lenta"], key="vel_dialogo"
-    )
-
-    col1, col2 = st.columns(2)
-    boton_previa_conv = col1.button("🔊 Previsualizar diálogo completo")
-    boton_descargar_conv = col2.button("⬇️ Generar y descargar MP3 del diálogo")
-
-    if boton_previa_conv or boton_descargar_conv:
-        if not texto_conv.strip():
-            st.error("❌ El cuadro de texto está vacío.")
-        elif not segments:
-            st.error("❌ No se encontraron líneas válidas en el diálogo.")
-        else:
-            try:
-                audio_bytes = generate_full_dialogue_audio(
-                    segments, speakers, velocidad_conv
-                )
-                buffer = io.BytesIO(audio_bytes)
-
-                st.success("✅ Audio del diálogo generado correctamente.")
-                st.audio(buffer, format="audio/mp3")
-
-                if boton_descargar_conv:
-                    nombre_archivo = f"{nombre_base_conv or 'dialogo_generado'}.mp3"
+                    st.success("✅ Conversación generada.")
+                    st.audio(audio_final, format="audio/mp3")
                     st.download_button(
                         "⬇️ Descargar MP3 del diálogo",
-                        data=audio_bytes,
-                        file_name=nombre_archivo,
+                        data=audio_final,
+                        file_name="dialogo_sebastian_v.mp3",
                         mime="audio/mpeg",
                     )
-            except Exception as e:
-                st.error(f"❌ Error al generar el audio del diálogo (Edge TTS): {e}")
 
+# --------------------------
+# PIE DE PÁGINA
+# --------------------------
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: right; color: gray;'>Hecho por Sebastian V.</div>",
+    "<div style='text-align:right; color:gray; font-size:0.9rem;'>Hecho por Sebastian V.</div>",
     unsafe_allow_html=True,
 )
