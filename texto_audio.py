@@ -66,16 +66,17 @@ def generar_audio_gtts(texto: str, lang: str) -> bytes:
 # ============================
 # FUNCIONES PARA CONVERSACIÓN
 # ============================
-def parse_dialogue(text: str):
+def parse_dialog(text: str, incluir_nombres: bool = False) -> str:
     """
-    Parsea un diálogo en formato:
-    Personaje: texto...
-    Devuelve:
-      - lista de personajes únicos
-      - lista de segmentos (personaje, texto)
+    Convierte un diálogo tipo:
+        Profe: Hola
+        Alumno: Bien
+    en un texto continuo.
+
+    - Si incluir_nombres=True  -> "Profe: Hola. Alumno: Bien."
+    - Si incluir_nombres=False -> "Hola. Bien."
     """
-    personajes = []
-    segmentos = []
+    fragmentos = []
 
     for linea in text.splitlines():
         linea = linea.strip()
@@ -86,19 +87,19 @@ def parse_dialogue(text: str):
             nombre, contenido = linea.split(":", 1)
             nombre = nombre.strip()
             contenido = contenido.strip()
+            if not contenido:
+                continue
+
+            if incluir_nombres:
+                fragmentos.append(f"{nombre}: {contenido}")
+            else:
+                fragmentos.append(contenido)
         else:
-            nombre = "Narrador"
-            contenido = linea
+            # Línea sin nombre, se usa tal cual
+            fragmentos.append(linea)
 
-        if not contenido:
-            continue
-
-        if nombre not in personajes:
-            personajes.append(nombre)
-
-        segmentos.append((nombre, contenido))
-
-    return personajes, segmentos
+    # Unimos con pequeñas pausas
+    return ". ".join(fragmentos)
 
 
 def generar_linea_gtts(texto: str, lang: str) -> bytes:
